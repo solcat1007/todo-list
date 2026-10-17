@@ -2,129 +2,360 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>待办清单</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>待办清单 · 本地任务管理</title>
+<meta name="description" content="支持优先级、筛选与本地持久化的待办清单">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg">
+<meta name="theme-color" content="#29b6f6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="待办清单">
 <style>
+
+:root{
+  --bg:#f4f5f7;           /* 页面底色：浅灰，避免纯白刺眼 */
+  --bg-glow:#ffffff;      /* 顶部径向光晕色，制造轻微的空间感 */
+  --surface:#ffffff;      /* 卡片底色 */
+  --surface-2:#fafbfc;    /* 卡片内的次级区块（输入框、结果区） */
+  --text:#16181d;         /* 主文字 */
+  --soft:#5d636e;         /* 次要文字 */
+  --mute:#8b929e;         /* 弱化文字（提示、单位、占位符） */
+  --line:#e6e8ec;         /* 分割线与边框 */
+  --accent:#26a69a;       /* 强调色（各玩具不同） */
+  --accent-soft:#e6f4f2;  /* 强调色的浅色版，用于底色块 */
+  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{width:100vw;height:100vh;overflow:hidden;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#fff;color:#333;display:flex;align-items:center;justify-content:center}
-canvas{position:fixed;top:0;left:0;z-index:0}
-.main{z-index:1;width:100%;max-width:520px;padding:20px}
-.lang-btn{position:fixed;top:20px;left:20px;z-index:10;background:#00BCD4;color:#fff;border:none;padding:8px 16px;font-size:14px;cursor:pointer;border-radius:4px;font-family:inherit}
-.lang-btn:hover{background:#0097A7}
-h1{font-size:36px;font-weight:300;color:#00BCD4;text-align:center;margin-bottom:20px;letter-spacing:2px}
-.input-row{display:flex;gap:8px;margin-bottom:16px}
-.input-row input{flex:1;border:2px solid #e0e0e0;border-radius:6px;padding:10px 14px;font-size:15px;outline:none;font-family:inherit;transition:border-color .2s}
-.input-row input:focus{border-color:#00BCD4}
-.input-row button{background:#00BCD4;color:#fff;border:none;padding:10px 20px;font-size:15px;cursor:pointer;border-radius:6px;font-family:inherit;white-space:nowrap}
-.input-row button:hover{background:#0097A7}
-.filter-row{display:flex;gap:6px;margin-bottom:16px;justify-content:center}
-.filter-row button{background:transparent;color:#999;border:1px solid #e0e0e0;padding:6px 16px;font-size:13px;cursor:pointer;border-radius:20px;font-family:inherit}
-.filter-row button.active{background:#00BCD4;color:#fff;border-color:#00BCD4}
-.filter-row button:hover:not(.active){border-color:#00BCD4;color:#00BCD4}
-.todo-list{list-style:none;max-height:50vh;overflow-y:auto;padding-right:4px}
-.todo-list::-webkit-scrollbar{width:4px}
-.todo-list::-webkit-scrollbar-thumb{background:#00BCD4;border-radius:2px}
-.todo-item{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:6px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;transition:all .2s}
-.todo-item:hover{border-color:#00BCD4}
-.todo-item.completed{opacity:.5}
-.todo-item.completed .todo-text{text-decoration:line-through;color:#bbb}
-.todo-check{width:20px;height:20px;border:2px solid #ddd;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s}
-.todo-item.completed .todo-check{border-color:#00BCD4;background:#00BCD4}
-.todo-item.completed .todo-check::after{content:'✓';color:#fff;font-size:12px}
-.todo-text{flex:1;font-size:15px;word-break:break-word}
-.todo-del{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0}
-.todo-del:hover{color:#f44336}
-.empty-msg{text-align:center;color:#ccc;padding:40px 0;font-size:14px}
-.stats{text-align:center;font-size:12px;color:#999;margin-top:12px}
-.fullscreen-btn{position:fixed;top:20px;right:20px;z-index:10;background:#00BCD4;color:#fff;border:none;padding:8px 16px;font-size:14px;cursor:pointer;border-radius:4px;font-family:inherit}
-.fullscreen-btn:hover{background:#0097A7}
+
+body{
+  font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg);
+  /* 顶部一层极淡光晕，比死板的纯色更有层次 */
+  background-image:radial-gradient(120% 80% at 50% 0%, var(--bg-glow) 0%, rgba(255,255,255,0) 62%);
+  background-attachment:fixed;
+  color:var(--text);
+  min-height:100dvh;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:24px; -webkit-font-smoothing:antialiased;
+}
+
+.app{width:100%; max-width:480px; display:flex; flex-direction:column; align-items:center; gap:20px}
+
+.head{text-align:center}
+.head h1{font-size:22px; font-weight:600; letter-spacing:.5px}
+.head p{font-size:13px; color:var(--mute); margin-top:6px}
+
+.card{
+  width:100%; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r-lg); padding:22px; box-shadow:var(--shadow);
+}
+
+.stage{
+  width:288px; height:288px; position:relative;
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:50%; box-shadow:var(--shadow);
+  display:flex; align-items:center; justify-content:center;
+}
+.stage canvas{border-radius:50%}
+
+.phase{
+  font-size:29px; font-weight:300; letter-spacing:6px;
+  color:var(--accent); min-height:42px; text-align:center;
+  transition:color .4s var(--ease);
+}
+.cd{font-size:15px; color:var(--soft); font-variant-numeric:tabular-nums; min-height:22px}
+.meta{font-size:13px; color:var(--mute); min-height:20px; text-align:center}
+
+.row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center}
+.stats{display:flex; gap:10px; width:100%}
+.stat{
+  flex:1; background:var(--surface-2); border:1px solid var(--line);
+  border-radius:var(--r-md); padding:12px; text-align:center;
+}
+.stat .k{font-size:11px; color:var(--mute); letter-spacing:1px}
+.stat .v{font-size:21px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums}
+
+.chip{
+  padding:9px 18px; font-size:13px; font-weight:500; font-family:inherit;
+  background:var(--surface); color:var(--soft);
+  border:1px solid var(--line); border-radius:999px; cursor:pointer;
+  transition:all .2s var(--ease);
+}
+.chip:hover{border-color:var(--accent); color:var(--accent)}
+.chip.active{
+  background:var(--accent); border-color:var(--accent); color:#fff;
+  box-shadow:0 4px 14px rgba(0,0,0,.14);
+}
+
+.btn{
+  padding:13px 42px; font-size:15px; font-weight:600; font-family:inherit;
+  letter-spacing:3px; background:var(--accent); color:#fff;
+  border:none; border-radius:var(--r-md); cursor:pointer;
+  transition:transform .15s var(--ease), box-shadow .2s var(--ease);
+  box-shadow:0 6px 20px rgba(0,0,0,.16);
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn.ghost{background:transparent; border:1px solid var(--line); color:var(--soft); box-shadow:none}
+
+.lang{
+  position:fixed; top:16px; right:16px; z-index:20;
+  padding:7px 14px; font-size:12px; font-weight:600; font-family:inherit;
+  background:var(--surface); color:var(--soft);
+  border:1px solid var(--line); border-radius:999px; cursor:pointer;
+  transition:all .2s var(--ease);
+}
+.lang:hover{border-color:var(--accent); color:var(--accent)}
+
+.hint{font-size:12px; color:var(--mute); text-align:center; line-height:1.7}
+
+@media (max-width:380px){
+  .stage{width:250px;height:250px}
+  .phase{font-size:25px; letter-spacing:4px}
+}
+
+:root{ --accent:#29b6f6; --accent-soft:#e3f4fd; }
+
+.input-row{display:flex; gap:9px; margin-bottom:14px}
+.input-row input[type=text]{
+  flex:1; padding:12px 14px; font-size:16px; font-family:inherit;
+  border:1px solid var(--line); border-radius:var(--r-md);
+  background:var(--surface-2); color:var(--text);
+}
+.input-row input[type=text]:focus{outline:none; border-color:var(--accent); background:var(--surface)}
+.item{
+  display:flex; align-items:center; gap:11px; padding:12px;
+  border:1px solid var(--line); border-radius:var(--r-md);
+  background:var(--surface-2); margin-bottom:8px;
+}
+.item.done .txt{text-decoration:line-through; color:var(--mute)}
+.item .txt{flex:1; font-size:14px; line-height:1.5; word-break:break-all}
+.prio{
+  font-size:10px; font-weight:600; padding:3px 8px; border-radius:999px;
+  background:var(--accent-soft); color:var(--accent); letter-spacing:.5px;
+}
+.chk{
+  width:20px; height:20px; border:1.5px solid var(--line); border-radius:6px;
+  background:var(--surface); cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-size:12px; color:#fff; flex-shrink:0;
+}
+.chk.on{background:var(--accent); border-color:var(--accent)}
+
 </style>
 </head>
 <body>
-<button class="lang-btn" data-key="lang" onclick="toggleLang()">中/EN</button>
-<button class="fullscreen-btn" data-key="start" onclick="goFullscreen()">开始</button>
-<canvas id="bg"></canvas>
-<div class="main">
-  <h1 data-key="title">待办清单</h1>
-  <div class="input-row">
-    <input type="text" id="todoInput" data-key-placeholder="placeholder" onkeydown="if(event.key==='Enter')addTodo()">
-    <button onclick="addTodo()" data-key="add">添加</button>
+<button class="lang" id="langBtn" onclick="toggleLang()">EN</button>
+<div class="app">
+
+  <div class="head">
+    <h1 id="t_title">待办清单</h1>
   </div>
-  <div class="filter-row">
-    <button class="active" onclick="setFilter('all')" data-key="all" data-filter="all">全部</button>
-    <button onclick="setFilter('active')" data-key="active" data-filter="active">未完成</button>
-    <button onclick="setFilter('completed')" data-key="completed" data-filter="completed">已完成</button>
+
+  <div class="card">
+    <div class="input-row">
+      <input type="text" id="inp" placeholder="添加一项待办…">
+      <select id="prio" style="padding:12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2);font-family:inherit">
+        <option value="high" id="o_high">高</option>
+        <option value="mid" id="o_mid" selected>中</option>
+        <option value="low" id="o_low">低</option>
+      </select>
+      <button class="chip active" onclick="add()">+</button>
+    </div>
+    <div class="row" style="margin-bottom:12px" id="filters"></div>
+    <div id="list"></div>
+    <div class="meta" id="empty"></div>
   </div>
-  <ul class="todo-list" id="todoList"></ul>
-  <div class="stats" id="stats"></div>
+
+  <div class="hint" id="t_hint">数据保存在浏览器本地</div>
+
 </div>
 <script>
-const i18n={
-  zh:{title:"待办清单",start:"开始",lang:"中/EN",add:"添加",all:"全部",active:"未完成",completed:"已完成",placeholder:"输入待办事项...",empty_all:"暂无待办事项",empty_active:"没有未完成的事项",empty_completed:"没有已完成的事项",stats:"共 {total} 项，{done} 项已完成"},
-  en:{title:"Todo List",start:"Start",lang:"中/EN",add:"Add",all:"All",active:"Active",completed:"Done",placeholder:"Add a task...",empty_all:"No tasks yet",empty_active:"No active tasks",empty_completed:"No completed tasks",stats:"{total} total, {done} done"}
-};
-let lang='zh',filter='all',todos=[];
-function t(k){return i18n[lang][k]||k}
-function toggleLang(){lang=lang==='zh'?'en':'zh';updateUI()}
-function updateUI(){document.querySelectorAll('[data-key]').forEach(el=>{el.textContent=t(el.dataset.key)});document.querySelectorAll('[data-key-placeholder]').forEach(el=>{el.placeholder=t(el.dataset.keyPlaceholder)});render()}
 
-function goFullscreen(){document.documentElement.requestFullscreen().catch(()=>{});document.querySelector('.fullscreen-btn').remove();drawGrid()}
+/* ============================================================
+ * 待办清单
+ * ------------------------------------------------------------
+ * 数据模型：
+ *   { id, text, done, prio, createdAt }
+ * prio 用 high/mid/low 三档，排序时映射成权重。
+ *
+ * 持久化：每次变更后整体序列化写入 localStorage。
+ *   数据量小（几十条），整体覆写比增量更新简单且不易出错。
+ *
+ * XSS 防护：渲染时用 textContent 而不是 innerHTML 塞用户文本，
+ *   避免待办内容里的 <script> 被执行。
+ * ========================================================== */
 
-const canvas=document.getElementById('bg'),ctx=canvas.getContext('2d');
-function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
-function drawGrid(){resize();ctx.strokeStyle='#f0f8f9';ctx.lineWidth=1;const s=40;for(let x=0;x<canvas.width;x+=s){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}for(let y=0;y<canvas.height;y+=s){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}}
-window.addEventListener('resize',drawGrid);drawGrid();
+const KEY = 'todo_items';
+const PRIO_WEIGHT = { high:0, mid:1, low:2 };
+const PRIO_LABEL  = { high:'高', mid:'中', low:'低' };
 
-function load(){try{todos=JSON.parse(localStorage.getItem('todo_list')||'[]')}catch(e){todos=[]}render()}
-function save(){localStorage.setItem('todo_list',JSON.stringify(todos))}
+let items = [];
+let filter = 'all';      /* all | active | done */
 
-function addTodo(){
-  const input=document.getElementById('todoInput');
-  const text=input.value.trim();
-  if(!text)return;
-  todos.push({id:Date.now(),text,done:false});
-  input.value='';save();render();
+const inpEl  = document.getElementById('inp');
+const prioEl = document.getElementById('prio');
+
+/* ---------- 存取 ---------- */
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    items = raw ? JSON.parse(raw) : [];
+  } catch(e){ items = []; }
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e){}
 }
 
-function toggleTodo(id){
-  const todo=todos.find(t=>t.id===id);
-  if(todo){todo.done=!todo.done;save();render()}
-}
+/* ---------- 操作 ---------- */
 
-function deleteTodo(id){
-  todos=todos.filter(t=>t.id!==id);
-  save();render();
-}
+/** 新增一项；未完成的排前面，同级按优先级再按创建时间 */
+function add(){
+  const text = inpEl.value.trim();
+  if (!text) return;
 
-function setFilter(f){
-  filter=f;
-  document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===f));
+  items.push({
+    id: Date.now(),
+    text: text,
+    done: false,
+    prio: prioEl.value,
+    createdAt: Date.now()
+  });
+
+  inpEl.value = '';
+  sortItems();
+  save();
   render();
 }
 
-function render(){
-  const list=document.getElementById('todoList');
-  let filtered=todos;
-  if(filter==='active')filtered=todos.filter(t=>!t.done);
-  else if(filter==='completed')filtered=todos.filter(t=>t.done);
-  if(!filtered.length){
-    const key='empty_'+filter;
-    list.innerHTML=`<div class="empty-msg">${t(key)}</div>`;
-  }else{
-    list.innerHTML=filtered.map(todo=>`
-      <li class="todo-item${todo.done?' completed':''}">
-        <div class="todo-check" onclick="toggleTodo(${todo.id})"></div>
-        <span class="todo-text">${escapeHtml(todo.text)}</span>
-        <button class="todo-del" onclick="deleteTodo(${todo.id})">&times;</button>
-      </li>`).join('');
-  }
-  const doneCount=todos.filter(t=>t.done).length;
-  document.getElementById('stats').textContent=t('stats').replace('{total}',todos.length).replace('{done}',doneCount);
+function sortItems(){
+  items.sort(function(a,b){
+    if (a.done !== b.done) return a.done ? 1 : -1;                 /* 未完成优先 */
+    if (a.prio !== b.prio) return PRIO_WEIGHT[a.prio] - PRIO_WEIGHT[b.prio];
+    return a.createdAt - b.createdAt;
+  });
 }
 
-function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+/** 切换完成状态 */
+function toggle(id){
+  items.forEach(function(it){ if (it.id === id) it.done = !it.done; });
+  sortItems(); save(); render();
+}
+
+/** 删除一项 */
+function remove(id){
+  items = items.filter(function(it){ return it.id !== id; });
+  save(); render();
+}
+
+/** 清空已完成项 */
+function clearDone(){
+  items = items.filter(function(it){ return !it.done; });
+  save(); render();
+}
+
+/* ---------- 渲染 ---------- */
+
+/** 按当前筛选条件渲染列表 */
+function render(){
+  const box = document.getElementById('list');
+  box.innerHTML = '';
+
+  const shown = items.filter(function(it){
+    if (filter === 'active') return !it.done;
+    if (filter === 'done')   return it.done;
+    return true;
+  });
+
+  shown.forEach(function(it){
+    const row = document.createElement('div');
+    row.className = 'item' + (it.done ? ' done' : '');
+
+    const chk = document.createElement('div');
+    chk.className = 'chk' + (it.done ? ' on' : '');
+    chk.textContent = it.done ? '✓' : '';
+    chk.onclick = function(){ toggle(it.id); };
+
+    const tx = document.createElement('div');
+    tx.className = 'txt';
+    tx.textContent = it.text;            /* 用 textContent 防 XSS */
+
+    const pr = document.createElement('span');
+    pr.className = 'prio';
+    pr.textContent = PRIO_LABEL[it.prio];
+
+    const del = document.createElement('span');
+    del.className = 'prio';
+    del.textContent = '×';
+    del.onclick = function(){ remove(it.id); };
+
+    row.appendChild(chk); row.appendChild(tx);
+    row.appendChild(pr);  row.appendChild(del);
+    box.appendChild(row);
+  });
+
+  const left = items.filter(function(it){ return !it.done; }).length;
+  document.getElementById('empty').textContent =
+    shown.length ? (I18N[lang].left + ' ' + left) : I18N[lang].empty;
+}
+
+/** 构建筛选按钮 */
+function buildFilters(){
+  const box = document.getElementById('filters');
+  const opts = [['all','all'],['active','active'],['done','done']];
+  box.innerHTML = '';
+  opts.forEach(function(o){
+    const b = document.createElement('button');
+    b.className = 'chip' + (filter === o[0] ? ' active' : '');
+    b.textContent = I18N[lang][o[1]];
+    b.onclick = function(){ filter = o[0]; buildFilters(); render(); };
+    box.appendChild(b);
+  });
+}
+
+const I18N_ = {
+  zh:{ title:'待办清单', hint:'数据保存在浏览器本地', all:'全部', active:'未完成',
+       done:'已完成', left:'剩余', empty:'还没有待办项', ph:'添加一项待办…',
+       high:'高', mid:'中', low:'低' },
+  en:{ title:'Todo', hint:'Stored in this browser', all:'All', active:'Active',
+       done:'Done', left:'Left', empty:'Nothing here yet', ph:'Add a task...',
+       high:'High', mid:'Med', low:'Low' }
+};
+const I18N = I18N_;
+let lang = 'zh';
+
+function refresh(){
+  const L = I18N[lang];
+  document.getElementById('t_title').textContent  = L.title;
+  document.getElementById('t_hint').textContent    = L.hint;
+  document.getElementById('inp').placeholder       = L.ph;
+  document.getElementById('o_high').textContent    = L.high;
+  document.getElementById('o_mid').textContent     = L.mid;
+  document.getElementById('o_low').textContent     = L.low;
+  document.getElementById('langBtn').textContent   = (lang==='zh') ? 'EN' : '中';
+  buildFilters();
+}
+function toggleLang(){ lang = (lang==='zh') ? 'en' : 'zh'; refresh(); }
+
+/* 回车即添加 */
+inpEl.addEventListener('keydown', function(e){
+  if (e.key === 'Enter') add();
+});
 
 load();
+sortItems();
+refresh();
+render();
+
+/* ---------- PWA 注册 ----------
+ * 注册 Service Worker 后本页被缓存，断网也能打开。
+ * 放在最后且 catch 掉异常：即使浏览器不支持也不影响正常功能。 */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  });
+}
 </script>
 </body>
 </html>
