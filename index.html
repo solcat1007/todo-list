@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>待办清单</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:100vw;height:100vh;overflow:hidden;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#fff;color:#333;display:flex;align-items:center;justify-content:center}
+canvas{position:fixed;top:0;left:0;z-index:0}
+.main{z-index:1;width:100%;max-width:520px;padding:20px}
+.lang-btn{position:fixed;top:20px;left:20px;z-index:10;background:#00BCD4;color:#fff;border:none;padding:8px 16px;font-size:14px;cursor:pointer;border-radius:4px;font-family:inherit}
+.lang-btn:hover{background:#0097A7}
+h1{font-size:36px;font-weight:300;color:#00BCD4;text-align:center;margin-bottom:20px;letter-spacing:2px}
+.input-row{display:flex;gap:8px;margin-bottom:16px}
+.input-row input{flex:1;border:2px solid #e0e0e0;border-radius:6px;padding:10px 14px;font-size:15px;outline:none;font-family:inherit;transition:border-color .2s}
+.input-row input:focus{border-color:#00BCD4}
+.input-row button{background:#00BCD4;color:#fff;border:none;padding:10px 20px;font-size:15px;cursor:pointer;border-radius:6px;font-family:inherit;white-space:nowrap}
+.input-row button:hover{background:#0097A7}
+.filter-row{display:flex;gap:6px;margin-bottom:16px;justify-content:center}
+.filter-row button{background:transparent;color:#999;border:1px solid #e0e0e0;padding:6px 16px;font-size:13px;cursor:pointer;border-radius:20px;font-family:inherit}
+.filter-row button.active{background:#00BCD4;color:#fff;border-color:#00BCD4}
+.filter-row button:hover:not(.active){border-color:#00BCD4;color:#00BCD4}
+.todo-list{list-style:none;max-height:50vh;overflow-y:auto;padding-right:4px}
+.todo-list::-webkit-scrollbar{width:4px}
+.todo-list::-webkit-scrollbar-thumb{background:#00BCD4;border-radius:2px}
+.todo-item{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:6px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;transition:all .2s}
+.todo-item:hover{border-color:#00BCD4}
+.todo-item.completed{opacity:.5}
+.todo-item.completed .todo-text{text-decoration:line-through;color:#bbb}
+.todo-check{width:20px;height:20px;border:2px solid #ddd;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.todo-item.completed .todo-check{border-color:#00BCD4;background:#00BCD4}
+.todo-item.completed .todo-check::after{content:'✓';color:#fff;font-size:12px}
+.todo-text{flex:1;font-size:15px;word-break:break-word}
+.todo-del{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0}
+.todo-del:hover{color:#f44336}
+.empty-msg{text-align:center;color:#ccc;padding:40px 0;font-size:14px}
+.stats{text-align:center;font-size:12px;color:#999;margin-top:12px}
+.fullscreen-btn{position:fixed;top:20px;right:20px;z-index:10;background:#00BCD4;color:#fff;border:none;padding:8px 16px;font-size:14px;cursor:pointer;border-radius:4px;font-family:inherit}
+.fullscreen-btn:hover{background:#0097A7}
+</style>
+</head>
+<body>
+<button class="lang-btn" data-key="lang" onclick="toggleLang()">中/EN</button>
+<button class="fullscreen-btn" data-key="start" onclick="goFullscreen()">开始</button>
+<canvas id="bg"></canvas>
+<div class="main">
+  <h1 data-key="title">待办清单</h1>
+  <div class="input-row">
+    <input type="text" id="todoInput" data-key-placeholder="placeholder" onkeydown="if(event.key==='Enter')addTodo()">
+    <button onclick="addTodo()" data-key="add">添加</button>
+  </div>
+  <div class="filter-row">
+    <button class="active" onclick="setFilter('all')" data-key="all" data-filter="all">全部</button>
+    <button onclick="setFilter('active')" data-key="active" data-filter="active">未完成</button>
+    <button onclick="setFilter('completed')" data-key="completed" data-filter="completed">已完成</button>
+  </div>
+  <ul class="todo-list" id="todoList"></ul>
+  <div class="stats" id="stats"></div>
+</div>
+<script>
+const i18n={
+  zh:{title:"待办清单",start:"开始",lang:"中/EN",add:"添加",all:"全部",active:"未完成",completed:"已完成",placeholder:"输入待办事项...",empty_all:"暂无待办事项",empty_active:"没有未完成的事项",empty_completed:"没有已完成的事项",stats:"共 {total} 项，{done} 项已完成"},
+  en:{title:"Todo List",start:"Start",lang:"中/EN",add:"Add",all:"All",active:"Active",completed:"Done",placeholder:"Add a task...",empty_all:"No tasks yet",empty_active:"No active tasks",empty_completed:"No completed tasks",stats:"{total} total, {done} done"}
+};
+let lang='zh',filter='all',todos=[];
+function t(k){return i18n[lang][k]||k}
+function toggleLang(){lang=lang==='zh'?'en':'zh';updateUI()}
+function updateUI(){document.querySelectorAll('[data-key]').forEach(el=>{el.textContent=t(el.dataset.key)});document.querySelectorAll('[data-key-placeholder]').forEach(el=>{el.placeholder=t(el.dataset.keyPlaceholder)});render()}
+
+function goFullscreen(){document.documentElement.requestFullscreen().catch(()=>{});document.querySelector('.fullscreen-btn').remove();drawGrid()}
+
+const canvas=document.getElementById('bg'),ctx=canvas.getContext('2d');
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
+function drawGrid(){resize();ctx.strokeStyle='#f0f8f9';ctx.lineWidth=1;const s=40;for(let x=0;x<canvas.width;x+=s){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}for(let y=0;y<canvas.height;y+=s){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}}
+window.addEventListener('resize',drawGrid);drawGrid();
+
+function load(){try{todos=JSON.parse(localStorage.getItem('todo_list')||'[]')}catch(e){todos=[]}render()}
+function save(){localStorage.setItem('todo_list',JSON.stringify(todos))}
+
+function addTodo(){
+  const input=document.getElementById('todoInput');
+  const text=input.value.trim();
+  if(!text)return;
+  todos.push({id:Date.now(),text,done:false});
+  input.value='';save();render();
+}
+
+function toggleTodo(id){
+  const todo=todos.find(t=>t.id===id);
+  if(todo){todo.done=!todo.done;save();render()}
+}
+
+function deleteTodo(id){
+  todos=todos.filter(t=>t.id!==id);
+  save();render();
+}
+
+function setFilter(f){
+  filter=f;
+  document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===f));
+  render();
+}
+
+function render(){
+  const list=document.getElementById('todoList');
+  let filtered=todos;
+  if(filter==='active')filtered=todos.filter(t=>!t.done);
+  else if(filter==='completed')filtered=todos.filter(t=>t.done);
+  if(!filtered.length){
+    const key='empty_'+filter;
+    list.innerHTML=`<div class="empty-msg">${t(key)}</div>`;
+  }else{
+    list.innerHTML=filtered.map(todo=>`
+      <li class="todo-item${todo.done?' completed':''}">
+        <div class="todo-check" onclick="toggleTodo(${todo.id})"></div>
+        <span class="todo-text">${escapeHtml(todo.text)}</span>
+        <button class="todo-del" onclick="deleteTodo(${todo.id})">&times;</button>
+      </li>`).join('');
+  }
+  const doneCount=todos.filter(t=>t.done).length;
+  document.getElementById('stats').textContent=t('stats').replace('{total}',todos.length).replace('{done}',doneCount);
+}
+
+function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+load();
+</script>
+</body>
+</html>
