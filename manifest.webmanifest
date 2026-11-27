@@ -1,7 +1,8 @@
 {
+  "version": "2.0.0",
   "name": "待办清单 · 小工具",
   "short_name": "待办清单",
-  "description": "本地存储的任务管理工具",
+  "description": "优先级、标签、拖拽排序与完成统计的待办清单 v2.0",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
